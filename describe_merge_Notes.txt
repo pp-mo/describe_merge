@@ -1,0 +1,37 @@
+notation idea: 
+  consider 3x4 cube like iris.tests.stock.simple_2d()
+  cut it up various ways, where all (assumed) have both dims
+  denote contents in 1dim by [a][b][c] and the other with [1][2][3][4]
+  e.g.
+    cube3x4 shows 'abc1234'
+    cube3x4[0,0] is 'a1'
+    cube3x4[:,1:3] is 'abc23'
+
+will consider taking various 'slices' of this and attempting to re-combine them.
+
+expected results ...
+
+  ab1 ab2  -->  ab12
+  a1 a2 a4  -->  a124
+  a1 a2 ab1  --> a12 XXX ab1
+  ab12 ab3  -XXX-> ab123 (??)
+  a1 b2 a2 b1  -->  ab12
+  a1 b2  -->  
+
+Factors omitted:
+  anything identical in all cubes
+  any odd factors 'conveniently ignored' = different in all, or not present in all
+    ()
+
+TO CONSIDER
+  possible effect of bounds
+  can ignore mismatched or sporadic scalar coords or attributes ??
+
+
+
+Unexpected facts ?
+def tm(cubes):    
+  return iris.cube.CubeList(cubes).merge()
+
+
+
