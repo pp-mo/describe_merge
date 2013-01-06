@@ -3,6 +3,10 @@ Created on Jan 4, 2013
 
 @author: itpp
 '''
+
+import numpy as np
+import numpy.lib.index_tricks as npit
+
 do_real = False
 if do_real:
     import iris
@@ -52,10 +56,12 @@ if not do_real:
             for (name, n_points) in dims_list:
                 self._coord_dims[name] = len(self._coord_names)
                 self._coord_names.append(name)
-                self._coords.append(DummyCoord(range(n_points)))
+                self._coords.append(DummyCoord(np.arange(n_points)))
             if array is None:
-                array = np.zeros(self.shape)
-                array.flat = np.arange(array.size)
+                array = 100*np.ones(self.shape)
+                dim_arrays = npit.mgrid[[slice(n) for n in self.shape]]
+                for dim_array in dim_arrays:
+                    array = 10.0*array + dim_array
             self.data = array
             
         def coord(self, name):
@@ -68,25 +74,31 @@ if not do_real:
             return [self._coords[try_index]]
         
         def __getitem__(self, indexes):
-            #print 'getitem : ',indexes
+            print 'getitem : ',indexes
+            # start by using numpy indexing on data
             array = self.data[indexes]
-            #print '  array = ', self.data
-            #print '  subarray = ', array
-            return DummyCube(array)
+            result = DummyCube(array)
+            # also fix resulting coordinates
+            for (index,old_coord,coord_name) in zip(indexes, self._coords, self._coord_names):
+                print 'reindexing : ', coord_name
+                new_coord_dim = result._coord_dims.get(coord_name, None)
+                if new_coord_dim is not None:
+                    new_coord = result._coords[new_coord_dim]
+                    coord_points = old_coord.points[index]
+                    new_coord.points = coord_points
+                else:
+                    print ' ..not in new cube'
+            return result
         
         def __str__(self):
-            return '<DummyCube: '+str(self.data)+'>'
+            return '<DummyCube: \n'+str(self.data)+'>'
             
     nz = 5
     coord_dims = [3,4,nz]
     coord_dims = dict(zip(coord_names, coord_dims))
-#    print 'coord dims = ', coord_dims
     # note for these, coords must occur IN DIMENSION ORDER
     t2d = DummyCube([(name, coord_dims[name]) for name in ('bar', 'foo')])
     t3d = DummyCube([(name, coord_dims[name]) for name in ('baz', 'bar', 'foo')])
-#    print 'dummy t2d = ', t2d
-#    print 'dummy t2d[2:,2:] = ',t2d[2:,2:]
-#    print 'dummy t3d = ', t3d
 
 
 
@@ -115,7 +127,12 @@ def cube_2_notation_string(cube):
     return out_str
 
 def cube_from_notation_string(cube_string):
-    """ Construct a cube from a 'merge notation' string."""
+    """
+    Construct a cube from a 'merge notation' string.
+    
+    Note: may specify out-of-order selection on a coordinate
+    For example, 'ca312'.
+    """
     coord_indices = {coord_name:[] for coord_name in coord_names}
     for this_char in cube_string:
         coord_name, = [name for name in coord_names
@@ -123,7 +140,11 @@ def cube_from_notation_string(cube_string):
         point_index = coord_pts[coord_name].values().index(this_char)
         coord_indices[coord_name].append(point_index)
     #print 'coord indices:', coord_indices
-    if len(coord_indices['baz']) == 0:
+    if len(coord_indices['baz']) > 0:
+        result_cube = t3d
+    else:
+        result_cube = t2d
+    for (coord_name, coord_indices) in coord_indices:        
         print '2d slice: ',coord_indices['bar'], coord_indices['foo']
         result_cube = t2d[coord_indices['bar'], coord_indices['foo']]
     else:
@@ -133,9 +154,11 @@ def cube_from_notation_string(cube_string):
 
 def test_cube_2_notation_string():
     tst_specs = [
-        ('t2d',t2d),
-        ('t3d',t3d),
-        ('t3d[0,1:2,2:]',t3d[0,1:2,2:])
+        ('t2d', t2d),
+        ('t3d', t3d),
+        ('t3d[0,1:2,2:]', t3d[0,1:2,2:]),
+        ('t3d[[2,0,1], 1:3, 3:]', t3d[[2,0,1], 1:3, 3:]),
+        ('t3d[1:2, [3,0], 2:3]', t3d[1:2, [3,0], 2:3]),
     ]
     for (tst_str, tst_cube) in tst_specs:
         print 'test cube = ', tst_str
@@ -146,6 +169,9 @@ print
 print 'TEST cube_2_notation_string...'
 test_cube_2_notation_string()
 print
+
+# early exit for now
+exit(0)
 
 def test_cube_from_notation_string():
     tst_specs = [
