@@ -7,36 +7,42 @@ Created on Jan 4, 2013
 import numpy as np
 import numpy.lib.index_tricks as npit
 
+# dimension coordinate names we will use/assume
+coord_names = ['baz','bar','foo']
+# base-characters for naming the points
+coord_id_start_chars = ['P','a','1']
+  # so e.g. : a1, ab234, Qa1, QSa12
+# size of constructed 3rd dimension
+_nz = 5
+# size of dimensions
+coord_lens = [_nz, 3, 4]
+
 do_real = False
 if do_real:
     import iris
     import iris.tests.stock
 
-    def tm(cubes):    
-      return iris.cube.CubeList(cubes).merge()
-
+    # load stock 2d cube
     t2d = iris.tests.stock.simple_2d(with_bounds=False)
-    print 't2d'
-    print t2d
 
-    nz = 5
-    t3d = [t2d.copy() for iz in range(nz)]
-    for iz in range(nz):
-      t3d[iz].add_aux_coord(iris.coords.DimCoord([iz],long_name='baz'))
+    # check as expected (as assumed for 'fake' operation)
+    for (coord_name, coord_len) in zip(coord_names[1:3], coord_lens[1:3]):
+        coord = t2d.coord(coord_name)
+        assert coord.shape == (coord_len,)
+
+    # construct 3d test cube
+    t3d = [t2d.copy() for iz in range(_nz)]
+    for iz in range(_nz):
+      t3d[iz].add_aux_coord(iris.coords.DimCoord([iz],long_name=coord_names[0]))
     t3d = iris.cube.CubeList(t3d).merge()[0]
-    print 't3d'
-    print t3d
 
-# order we wish to treat the names in (which is *not* in dimension order)
-coord_names = ['baz','foo','bar']
-
-if not do_real:
+else:   # (not do_real)
     import numpy as np
-    
+
     class DummyCoord(object):
         def __init__(self, points):
             self.points = points
-            
+
     class DummyCube(object):
         def __init__(self, array=None, dims_list=None):
             if array is not None:
@@ -74,37 +80,31 @@ if not do_real:
             return [self._coords[try_index]]
         
         def __getitem__(self, indexes):
-            print 'getitem : ',indexes
+#            print 'getitem : ',indexes
             # start by using numpy indexing on data
             array = self.data[indexes]
             result = DummyCube(array)
             # also fix resulting coordinates
             for (index,old_coord,coord_name) in zip(indexes, self._coords, self._coord_names):
-                print 'reindexing : ', coord_name
+#                print 'reindexing : ', coord_name
                 new_coord_dim = result._coord_dims.get(coord_name, None)
                 if new_coord_dim is not None:
                     new_coord = result._coords[new_coord_dim]
                     coord_points = old_coord.points[index]
                     new_coord.points = coord_points
                 else:
-                    print ' ..not in new cube'
+#                    print ' ..not in new cube'
+                    pass
             return result
         
         def __str__(self):
             return '<DummyCube: \n'+str(self.data)+'>'
             
-    nz = 5
-    coord_dims = [3,4,nz]
+    coord_dims = [_nz,3,4]
     coord_dims = dict(zip(coord_names, coord_dims))
     # note for these, coords must occur IN DIMENSION ORDER
     t2d = DummyCube([(name, coord_dims[name]) for name in ('bar', 'foo')])
     t3d = DummyCube([(name, coord_dims[name]) for name in ('baz', 'bar', 'foo')])
-
-
-
-# base-characters for naming the points
-coord_id_start_chars = ['P','a','1']
-  # so e.g. : a1, ab234, Qa1, QSa12
 
 # point values and corresponding characters for each coord (by name)
 coord_pts = {}
@@ -158,12 +158,20 @@ def test_cube_2_notation_string():
         ('t3d', t3d),
         ('t3d[0,1:2,2:]', t3d[0,1:2,2:]),
         ('t3d[[2,0,1], 1:3, 3:]', t3d[[2,0,1], 1:3, 3:]),
-        ('t3d[1:2, [3,0], 2:3]', t3d[1:2, [3,0], 2:3]),
+        ('t3d[1:2, [3,0], 2:3]', t3d[1:2, [2,0], 2:3]),
     ]
     for (tst_str, tst_cube) in tst_specs:
         print 'test cube = ', tst_str
-        print tst_cube
+#        print tst_cube
         print '  --> ',cube_2_notation_string(tst_cube)
+
+
+print 't2d'
+print t2d
+print
+print 't3d'
+print t3d
+print
 
 print
 print 'TEST cube_2_notation_string...'
