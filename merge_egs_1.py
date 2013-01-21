@@ -112,7 +112,18 @@ def cube_from_notation_string(cube_string):
         result_cube = result_cube[:, :, coord_indices['foo']]
     return result_cube
 
-_TEST_NOTATION_SPECS = [
+
+def test_cube_notation_string(tst_cube, tst_str=None, expect_str=None):
+    if tst_str is not None:
+        print 'test cube expression = ', tst_str
+#        print tst_cube
+    tst_result = cube_notation_string(tst_cube)
+    print '  --> ', tst_result
+    if (expect_str is not None) and (tst_result != expect_str):
+        print ' !WRONG!, expected --> ', expect_str
+        assert(tst_result == expect_str)
+
+_CUBE_NOTATION_TEST_SPECS = [
     ('t2d', t2d, 'abc1234'),
     ('t3d', t3d, 'PQRSTabc1234'),
     ('t3d[0,1:2,2:]', t3d[0,1:2,2:], 'Pb34'),
@@ -123,54 +134,33 @@ _TEST_NOTATION_SPECS = [
     ('t3d[:,:,1]', t3d[:,:,1], 'PQRSTabc2'),
     ('t3d[:,2,:]', t3d[:,2,:], 'PQRSTc1234'),
 ]
-    
-def test_cube_notation_string():
-    for (tst_str, tst_cube, expect_str) in _TEST_NOTATION_SPECS:
-        print 'test cube = ', tst_str
-#        print tst_cube
-        tst_result = cube_notation_string(tst_cube)
-        print '  --> ', tst_result
-        if tst_result != expect_str:
-            print ' !WRONG!, expected --> ', expect_str
-            assert(tst_result == expect_str)
 
-print 't2d'
-print t2d
-print
-print 't3d'
-print t3d
-print
+def test_to_notation_strings():
+    for (tst_str, tst_cube, expect_str) in _CUBE_NOTATION_TEST_SPECS:
+        test_cube_notation_string(tst_cube, tst_str, expect_str)
 
-print
-print '-----------------------------------------'
-print 'TEST cube_notation_string...'
-test_cube_notation_string()
-print
+def test_cube_from_to_notation(tst_notation_str):
+    print tst_notation_str
+    tst_cube = cube_from_notation_string(tst_notation_str)
+    print tst_cube
+    tst_result = cube_notation_string(tst_cube)
+    print '  (back-convert -> {})'.format(tst_result)
+    assert(tst_result == tst_notation_str)
 
-def test_cube_from_notation_string():
-    tst_specs = [
+def test_from_notation_strings():
+    tst_notation_strs = [
         'ab12',
         'Pac21',
         'PQa12',
     ]
-    tst_specs += [expect_str for (tst_str, tst_cube, expect_str) in _TEST_NOTATION_SPECS]
-    for tst_str in tst_specs:
-        print tst_str
-        tst_cube = cube_from_notation_string(tst_str)
-        print tst_cube
-        tst_result = cube_notation_string(tst_cube)
-        print '  (back-convert -> {})'.format(tst_result)
+    tst_notation_strs += [expect_str 
+                  for (tst_str, tst_cube, expect_str)
+                  in _CUBE_NOTATION_TEST_SPECS]
+    for tst_str in tst_notation_strs:
+        test_cube_from_to_notation(tst_str)
         print
-        assert(tst_result == tst_str)
 
-print
-print '-----------------------------------------'
-print 'TEST cube_from_notation_string...'
-test_cube_from_notation_string()
-print
-
-
-def _reduce_cube(cube):
+def reduce_cube_for_merges(cube):
     # Replace vector coords of length 1 with scalars to enable merges.
     while cube.ndim > 0 and cube.shape[0] == 1:
         cube = cube[0]
@@ -180,27 +170,58 @@ def _reduce_cube(cube):
         cube = cube[:, :, 0]
     return cube
 
-def test_cube_merges():
+def test_cubelist_merge(in_speclist, out_speclist_expected=None):
+    print '  cubes merge input = ', ', '.join(in_speclist)
+    in_cubelist = iris.cube.CubeList([
+        reduce_cube_for_merges(cube_from_notation_string(cube_string))
+        for cube_string in in_speclist])
+    out_cubelist_actual = in_cubelist.merge()
+    out_speclist_actual = [cube_notation_string(cube) 
+                           for cube in out_cubelist_actual]
+    print '          output = ', ', '.join(out_speclist_actual)
+    if out_speclist_expected is not None:
+        if out_speclist_actual != out_speclist_expected:
+            print ' !XXXX! expected = ', ', '.join(out_speclist_expected)
+#                assert(out_speclist_actual == out_speclist_expected)
+
+
+def test_merges():
     test_merge_specs = [
         ( ['ab1', 'ab2'], ['ab12']),
         ( ['a1', 'a3', 'a2'], ['a123']),
         ( ['a1', 'b3', 'a3', 'b1'], ['ab13']),
+        ( ['a1', 'b2'], ['a1', 'b2'] ),
+        ( ['a1', 'a4', 'b2', 'a2'], ['a124', 'b2'] ),
     ]
     for (in_speclist, out_speclist_expected) in test_merge_specs:
-        print '  cubes merge input = ', ', '.join(in_speclist)
-        in_cubelist = iris.cube.CubeList([
-            _reduce_cube(cube_from_notation_string(cube_string))
-            for cube_string in in_speclist])
-        out_cubelist_actual = in_cubelist.merge()
-        out_speclist_actual = [cube_notation_string(cube) 
-                               for cube in out_cubelist_actual]
-        print '          output = ', ', '.join(out_speclist_actual)
-        if out_speclist_actual != out_speclist_expected:
-            print ' !XXXX! expected = ', ', '.join(out_speclist_expected)
-            assert(out_speclist_actual == out_speclist_expected)
+        test_cubelist_merge(in_speclist, out_speclist_expected)
         print
 
-print
-print '-----------------------------------------'
-print 'TEST cube merges...'
-test_cube_merges()
+if __name__ == '__main__':
+    print
+    print '-----------------------------------------'
+    print 'BASIC test cubes...'
+    print 't2d'
+    print t2d
+    print
+    print 't3d'
+    print t3d
+    print
+    
+    print
+    print '-----------------------------------------'
+    print 'TEST cube_notation_string...'
+    test_to_notation_strings()
+    print
+    
+    print
+    print '-----------------------------------------'
+    print 'TEST cube_from_notation_string...'
+    test_from_notation_strings()
+    print
+    
+    print
+    print '-----------------------------------------'
+    print 'TEST cube merges...'
+    test_merges()
+
