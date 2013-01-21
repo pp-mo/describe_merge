@@ -5,7 +5,7 @@ Created on Jan 4, 2013
 '''
 
 import numpy as np
-import numpy.lib.index_tricks as npit
+import numpy.lib.index_tricks as numpy_index_tricks
 
 # dimension coordinate names we will use/assume
 coord_names = ['baz','bar','foo']
@@ -17,7 +17,14 @@ _nz = 5
 # size of dimensions
 coord_lens = [_nz, 3, 4]
 
-do_real = False
+def stuff_array_with_indices(array):
+#    array[...] = 100*np.ones(array.shape)
+    array[...] = np.zeros(array.shape)
+    dim_arrays = numpy_index_tricks.mgrid[[slice(n) for n in array.shape]]
+    for dim_array in dim_arrays:
+        array[...] = 10.0*array + dim_array + 1
+
+do_real = True
 if do_real:
     import iris
     import iris.tests.stock
@@ -35,6 +42,10 @@ if do_real:
     for iz in range(_nz):
       t3d[iz].add_aux_coord(iris.coords.DimCoord([iz],long_name=coord_names[0]))
     t3d = iris.cube.CubeList(t3d).merge()[0]
+
+    # blast contents so we can easily see where indexing has taken us
+    for array in (t2d.data, t3d.data):
+        stuff_array_with_indices(array)
 
 else:   # (not do_real)
     import numpy as np
@@ -64,12 +75,9 @@ else:   # (not do_real)
                 self._coord_names.append(name)
                 self._coords.append(DummyCoord(np.arange(n_points)))
             if array is None:
-                array = 100*np.ones(self.shape)
-                dim_arrays = npit.mgrid[[slice(n) for n in self.shape]]
-                for dim_array in dim_arrays:
-                    array = 10.0*array + dim_array
+                stuff_array_with_indices(array)
             self.data = array
-            
+
         def coord(self, name):
             return self._coords[self._coord_dims[name]]
 
@@ -114,7 +122,7 @@ for (start_char, coord_name) in zip(coord_id_start_chars, coord_names):
     val2char_dict = {pt_val: chr(ord_0 + i_pt) for (i_pt, pt_val) in enumerate(points)}
     coord_pts[coord_name] = val2char_dict
 
-def cube_2_notation_string(cube):
+def cube_notation_string(cube):
     """ Make a 'merge notation' string showing dimension points in a cube."""
     out_str = ''
     for name in coord_names:
@@ -140,19 +148,20 @@ def cube_from_notation_string(cube_string):
         point_index = coord_pts[coord_name].values().index(this_char)
         coord_indices[coord_name].append(point_index)
     #print 'coord indices:', coord_indices
-    if len(coord_indices['baz']) > 0:
-        result_cube = t3d
-    else:
-        result_cube = t2d
-    for (coord_name, coord_indices) in coord_indices:        
+    if len(coord_indices['baz']) == 0:
         print '2d slice: ',coord_indices['bar'], coord_indices['foo']
-        result_cube = t2d[coord_indices['bar'], coord_indices['foo']]
+        result_cube = t2d
+        result_cube = result_cube[coord_indices['bar'], :]
+        result_cube = result_cube[:, coord_indices['foo']]
     else:
-        print '3d slice: ',coord_indices['bar'], coord_indices['foo']
-        result_cube = t3d[coord_indices['baz'], coord_indices['bar'], coord_indices['foo']]
+        print '3d slice: ',coord_indices['baz'], coord_indices['bar'], coord_indices['foo']
+        result_cube = t3d
+        result_cube = result_cube[coord_indices['baz'], :, :]
+        result_cube = result_cube[:, coord_indices['bar'], :]
+        result_cube = result_cube[:, :, coord_indices['foo']]
     return result_cube
 
-def test_cube_2_notation_string():
+def test_cube_notation_string():
     tst_specs = [
         ('t2d', t2d),
         ('t3d', t3d),
@@ -163,7 +172,7 @@ def test_cube_2_notation_string():
     for (tst_str, tst_cube) in tst_specs:
         print 'test cube = ', tst_str
 #        print tst_cube
-        print '  --> ',cube_2_notation_string(tst_cube)
+        print '  --> ',cube_notation_string(tst_cube)
 
 
 print 't2d'
@@ -174,52 +183,60 @@ print t3d
 print
 
 print
-print 'TEST cube_2_notation_string...'
-test_cube_2_notation_string()
+print '-----------------------------------------'
+print 'TEST cube_notation_string...'
+test_cube_notation_string()
 print
 
 # early exit for now
-exit(0)
+#exit(0)
 
 def test_cube_from_notation_string():
     tst_specs = [
         'ab12',
         'Pac21',
         'PQa12',
+        'PQRSTabc1234',
+        'abc1234',
+        'Pb34',
+        'RPQbc4',
+        'Qca3',
     ]
     for tst_str in tst_specs:
         print tst_str
-        t = cube_from_notation_string(tst_str)
-        print t
+        tst_cube = cube_from_notation_string(tst_str)
+        print tst_cube
+        print '  (back-convert -> {})'.format(cube_notation_string(tst_cube))
+        print
 
 print
+print '-----------------------------------------'
 print 'TEST cube_FROM_notation_string...'
 test_cube_from_notation_string()
 print
 
-def mergetest_string(cubes):
-    """ Make a notation string for a mergetest result. """
-    cubelist = iris.cube.CubeList(cubes)
-    result = ', '.join(cube_2_notation_string(cube) for cube in cubelist)
-    merged_cubelist = cubelist.merge()
-    merge_strings = [cube_2_notation_string(cube) for cube in merged_cubelist]
-    if len(merge_strings) == 1:
-        # single cube result
-        result += '  --->  ' + merge_strings[0]
-    else:
-        # multiple result
-        result += '  --[]-->  [' \
-            + ', '.join(merge_strings) \
-            + ']'
-    return result
 
-# test whole-test idea
-def test_merge(in_specs, out_specs=None):
-    """
-    Perform a mergetest, print result, and whether successful.
+def test_cube_merges():
+    test_merge_specs = [
+        ( ['ab1', 'ab2'], ['ab12']),
+        ( ['a1', 'a3', 'a2'], ['a123']),
+        ( ['a1', 'b3', 'a3', 'b1'], ['ab13']),
+    ]
+    for (in_speclist, out_speclist_expected) in test_merge_specs:
+        print '  cubes merge input = ', ', '.join(in_speclist)
+        in_cubelist = iris.cube.CubeList([
+#            _reduce_cube(cube_from_notation_string(cube_string))
+            cube_from_notation_string(cube_string)
+            for cube_string in in_speclist])
+        out_cubelist_actual = in_cubelist.merge()
+        out_speclist_actual = [cube_notation_string(cube) 
+                               for cube in out_cubelist_actual]
+        print '          output = ', ', '.join(out_speclist_actual)
+        if out_speclist_actual != out_speclist_expected:
+            print ' !XXXX! expected = ', ', '.join(out_speclist_expected)
+        print
 
-    Args:
-    * out_specs
-        the expected result.  Can only fail if this is given.
-    """
-    result_string = mergetest_string(in_specs)
+print
+print '-----------------------------------------'
+print 'TEST cube merges...'
+test_cube_merges()
