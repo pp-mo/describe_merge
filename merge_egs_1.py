@@ -170,12 +170,16 @@ def reduce_cube_for_merges(cube):
         cube = cube[:, :, 0]
     return cube
 
-def test_cubelist_merge(in_speclist, out_speclist_expected=None):
-    print '  cubes merge input = ', ', '.join(in_speclist)
+def merge_cubes_from_speclist(in_speclist):
     in_cubelist = iris.cube.CubeList([
         reduce_cube_for_merges(cube_from_notation_string(cube_string))
         for cube_string in in_speclist])
     out_cubelist_actual = in_cubelist.merge()
+    return out_cubelist_actual
+
+def test_cubelist_merge(in_speclist, out_speclist_expected=None):
+    print '  cubes merge input = ', ', '.join(in_speclist)
+    out_cubelist_actual = merge_cubes_from_speclist(in_speclist)
     out_speclist_actual = [cube_notation_string(cube) 
                            for cube in out_cubelist_actual]
     print '          output = ', ', '.join(out_speclist_actual)
@@ -192,6 +196,8 @@ def test_merges():
         ( ['a1', 'b3', 'a3', 'b1'], ['ab13']),
         ( ['a1', 'b2'], ['a1', 'b2'] ),
         ( ['a1', 'a4', 'b2', 'a2'], ['a124', 'b2'] ),
+        ( ['Pa1', 'Qa4', 'Ra4'], None ),
+        ( ['Pa1', 'Qb4', 'Ra4'], None ),
     ]
     for (in_speclist, out_speclist_expected) in test_merge_specs:
         test_cubelist_merge(in_speclist, out_speclist_expected)
@@ -224,4 +230,110 @@ if __name__ == '__main__':
     print '-----------------------------------------'
     print 'TEST cube merges...'
     test_merges()
+
+#
+# Some current issues demonstrated ...
+#
+
+#    >>> import merge_egs_1 as mt
+
+# Would expect this to work (==CONCATENATION) ...
+#
+#    >>> mt.test_cubelist_merge(['a12','a34'])
+#      cubes merge input =  a12, a34
+#              output =  a12, a34
+#    >>> 
+
+# Would *not* expect these ...
+
+#    >>> c,=mt.merge_cubes_from_speclist(['a1', 'b2'])
+#    >>> print c
+#    thingness                           (bar: 2)
+#         Dimension coordinates:
+#              bar                           x
+#         Auxiliary coordinates:
+#              foo                           x
+#    >>> c.coord('bar').points
+#    array([ 2.5,  7.5])
+#    >>> c.coord('foo').points
+#    array([-7.5,  7.5])
+#    >>> print mt.cube_notation_string(c)
+#    ab12
+#    >>> 
+
+#
+#    >>> mt.test_merges()
+#      cubes merge input =  ab1, ab2
+#              output =  ab12
+#    
+#      cubes merge input =  a1, a3, a2
+#              output =  a123
+#    
+#      cubes merge input =  a1, b3, a3, b1
+#              output =  ab13
+#    
+#      cubes merge input =  a1, b2
+#              output =  ab12
+#     !XXXX! expected =  a1, b2
+#    
+#      cubes merge input =  a1, a4, b2, a2
+#              output =  aaba1422
+#     !XXXX! expected =  a124, b2
+#    
+#      cubes merge input =  Pa1, Qa4, Ra4
+#              output =  PQRa144
+#    
+#      cubes merge input =  Pa1, Qb4, Ra4
+#              output =  PQRaba144
+#    
+
+#    >>> c,=mt.merge_cubes_from_speclist(['Pa1', 'Qb4', 'Ra4'])
+#    >>> print mt.cube_notation_string(c)
+#    PQRaba144
+#    >>> 
+#    >>> c
+#    <iris 'Cube' of thingness (baz: 3)>
+#    >>> print c
+#    thingness                           (baz: 3)
+#         Dimension coordinates:
+#              baz                           x
+#         Auxiliary coordinates:
+#              bar                           x
+#              foo                           x
+#    >>> 
+#    >>> c.coord('baz').points
+#    array([0, 1, 2])
+#    >>> c.coord('bar').points
+#    array([ 2.5,  7.5,  2.5])
+#    >>> c.coord('foo').points
+#    array([ -7.5,  37.5,  37.5])
+
+#    >>> c,=mt.merge_cubes_from_speclist(['Pa1', 'Qa4', 'Ra4'])
+#    >>> print mt.cube_notation_string(c)
+#    PQRa144
+#    >>> 
+#    >>> print c
+#    thingness                           (baz: 3)
+#         Dimension coordinates:
+#              baz                           x
+#         Auxiliary coordinates:
+#              foo                           x
+#         Scalar coordinates:
+#              bar: 2.5
+#    >>> 
+#    >>> c.coord('baz').points
+#    array([0, 1, 2])
+#    >>> c.coord('bar').points
+#    array([ 2.5])
+#    >>> c.coord('foo').points
+#    array([ -7.5,  37.5,  37.5])
+#    >>> c.data
+#    array([111, 214, 314], dtype=int32)
+#    >>> mt.cube_from_notation_string('Pa1').data
+#    array([[[111]]], dtype=int32)
+#    >>> mt.cube_from_notation_string('Qa4').data
+#    array([[[214]]], dtype=int32)
+#    >>> mt.cube_from_notation_string('Ra4').data
+#    array([[[314]]], dtype=int32)
+#    >>> 
 
