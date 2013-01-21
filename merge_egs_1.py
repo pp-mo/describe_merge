@@ -215,6 +215,15 @@ print 'TEST cube_FROM_notation_string...'
 test_cube_from_notation_string()
 print
 
+def _reduce_cube(cube):
+    # Replace vector coords of length 1 with scalars to enable merges.
+    while cube.ndim > 0 and cube.shape[0] == 1:
+        cube = cube[0]
+    while cube.ndim > 1 and cube.shape[1] == 1:
+        cube = cube[:, 0]
+    while cube.ndim > 2 and cube.shape[2] == 1:
+        cube = cube[:, :, 0]
+    return cube
 
 def test_cube_merges():
     test_merge_specs = [
@@ -225,8 +234,8 @@ def test_cube_merges():
     for (in_speclist, out_speclist_expected) in test_merge_specs:
         print '  cubes merge input = ', ', '.join(in_speclist)
         in_cubelist = iris.cube.CubeList([
-#            _reduce_cube(cube_from_notation_string(cube_string))
-            cube_from_notation_string(cube_string)
+            _reduce_cube(cube_from_notation_string(cube_string))
+#            cube_from_notation_string(cube_string)
             for cube_string in in_speclist])
         out_cubelist_actual = in_cubelist.merge()
         out_speclist_actual = [cube_notation_string(cube) 
