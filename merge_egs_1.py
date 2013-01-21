@@ -1,31 +1,40 @@
 '''
-Created on Jan 4, 2013
+Define a 'cube notation' scheme for merge testing.
 
-@author: itpp
+Can represent 2d and 3d cubes of a limited size, and extracted sections.
+Also *create* cubes of the correct structure from a notation string.
+The coordinate names associated with dimesions are fixed.
+The dimension points values in each dimension(coord
+Examples:
+  2d, 2*3
 '''
 
 import numpy as np
 import numpy.lib.index_tricks as numpy_index_tricks
 
-# dimension coordinate names we will use/assume
-coord_names = ['baz','bar','foo']
-# base-characters for naming the points
-coord_id_start_chars = ['P','a','1']
+# Dimension coordinate names to be used (*assumed* in notation code).
+_NOTATION_COORD_NAMES = ['baz','bar','foo']
+# Base-characters for naming the dimension points.
+_NOTATION_COORD_START_CHARS = ['P','a','1']
   # so e.g. : a1, ab234, Qa1, QSa12
-# size of constructed 3rd dimension
-_nz = 5
-# size of dimensions
-coord_lens = [_nz, 3, 4]
+
+# Testcube dimensions.
+_TEST_NZ = 5
+_TEST_NY = 3
+_TEST_NX = 4
+_NOTATION_DIM_SIZES = [_TEST_NZ, _TEST_NY, _TEST_NX]
 
 def stuff_array_with_indices(array):
-#    array[...] = 100*np.ones(array.shape)
+    # Encode the cell indexes into the values of an array.
+    # E.G. array(2,3) --> [[11,12,13],[21,22,23]]
     array[...] = np.zeros(array.shape)
     dim_arrays = numpy_index_tricks.mgrid[[slice(n) for n in array.shape]]
     for dim_array in dim_arrays:
         array[...] = 10.0*array + dim_array + 1
 
-do_real = False
+do_real = True
 if do_real:
+    # Create testcubes with real Iris cubes.
     import iris
     import iris.tests.stock
 
@@ -33,14 +42,18 @@ if do_real:
     t2d = iris.tests.stock.simple_2d(with_bounds=False)
 
     # check as expected (as assumed for 'fake' operation)
-    for (coord_name, coord_len) in zip(coord_names[1:3], coord_lens[1:3]):
+    for (coord_name, coord_len) in \
+            zip(_NOTATION_COORD_NAMES[1:3],
+                _NOTATION_DIM_SIZES[1:3]):
         coord = t2d.coord(coord_name)
         assert coord.shape == (coord_len,)
 
     # construct 3d test cube
-    t3d = [t2d.copy() for iz in range(_nz)]
-    for iz in range(_nz):
-      t3d[iz].add_aux_coord(iris.coords.DimCoord([iz],long_name=coord_names[0]))
+    t3d = [t2d.copy() for iz in range(_TEST_NZ)]
+    for iz in range(_TEST_NZ):
+      t3d[iz].add_aux_coord(
+          iris.coords.DimCoord([iz],
+                               long_name=_NOTATION_COORD_NAMES[0]))
     t3d = iris.cube.CubeList(t3d).merge()[0]
 
     # blast contents so we can easily see where indexing has taken us
@@ -48,6 +61,7 @@ if do_real:
         stuff_array_with_indices(array)
 
 else:   # (not do_real)
+    # Create 'fake' testcubes (for "cube notation" testing only, no merges).
     import numpy as np
 
     class DummyCoord(object):
@@ -62,7 +76,7 @@ else:   # (not do_real)
                     array = None
                 else:
                     n_dims = len(array.shape)
-                    names = coord_names[-n_dims:]
+                    names = _NOTATION_COORD_NAMES[-n_dims:]
                     dims_list = zip(names, array.shape)
                     #print 'cube from array : shape=', array.shape
                     #print '  dimslist = ', dims_list
@@ -87,14 +101,16 @@ else:   # (not do_real)
             if try_index is None:
                 return []
             return [self._coords[try_index]]
-        
+
         def __getitem__(self, indexes):
 #            print 'getitem : ',indexes
             # start by using numpy indexing on data
             array = self.data[indexes]
             result = DummyCube(array)
             # also fix resulting coordinates
-            for (index,old_coord,coord_name) in zip(indexes, self._coords, self._coord_names):
+            for (index,old_coord,coord_name) in \
+                    zip(indexes, self._coords,
+                        self._coord_names):
 #                print 'reindexing : ', coord_name
                 new_coord_dim = result._coord_dims.get(coord_name, None)
                 if new_coord_dim is not None:
@@ -105,32 +121,36 @@ else:   # (not do_real)
 #                    print ' ..not in new cube'
                     pass
             return result
-        
+
         def __str__(self):
             return '<DummyCube: \n'+str(self.data)+'>'
-            
-    coord_dims = [_nz,3,4]
-    coord_dims = dict(zip(coord_names, coord_dims))
-    # note for these, coords must occur IN DIMENSION ORDER
-    t2d = DummyCube([(name, coord_dims[name]) for name in ('bar', 'foo')])
-    t3d = DummyCube([(name, coord_dims[name]) for name in ('baz', 'bar', 'foo')])
 
-# point values and corresponding characters for each coord (by name)
-coord_pts = {}
-for (start_char, coord_name) in zip(coord_id_start_chars, coord_names):
+    coord_dims = dict(zip(_NOTATION_COORD_NAMES, _NOTATION_DIM_SIZES))
+    # note for these, coords must occur IN DIMENSION ORDER
+    t2d = DummyCube([(name, coord_dims[name]) 
+                     for name in _NOTATION_COORD_NAMES[-2:]])
+    t3d = DummyCube([(name, coord_dims[name]) 
+                     for name in _NOTATION_COORD_NAMES])
+
+# Define point values and notation characters for our 2d/3d test coords.
+_NOTATION_COORD_CHARS = {}
+for (start_char, coord_name) in \
+        zip(_NOTATION_COORD_START_CHARS,
+            _NOTATION_COORD_NAMES):
     points = t3d.coord(coord_name).points
     ord_0 = ord(start_char)
-    val2char_dict = {pt_val: chr(ord_0 + i_pt) for (i_pt, pt_val) in enumerate(points)}
-    coord_pts[coord_name] = val2char_dict
+    val2char_dict = {pt_val: chr(ord_0 + i_pt) 
+                     for (i_pt, pt_val) in enumerate(points)}
+    _NOTATION_COORD_CHARS[coord_name] = val2char_dict
 
 def cube_notation_string(cube):
     """ Make a 'merge notation' string showing dimension points in a cube."""
     out_str = ''
-    for name in coord_names:
+    for name in _NOTATION_COORD_NAMES:
         coords = cube.coords(name)
         if len(coords):
             coord, = coords
-            v2c_dict = coord_pts[name]
+            v2c_dict = _NOTATION_COORD_CHARS[name]
             out_str += ''.join(v2c_dict[v] for v in coord.points)
 
     return out_str
@@ -138,24 +158,25 @@ def cube_notation_string(cube):
 def cube_from_notation_string(cube_string):
     """
     Construct a cube from a 'merge notation' string.
-    
+
     Note: may specify out-of-order selection on a coordinate
     For example, 'ca312'.
     """
-    coord_indices = {coord_name:[] for coord_name in coord_names}
-    for this_char in cube_string:
-        coord_name, = [name for name in coord_names
-                            if this_char in coord_pts[name].values()]
-        point_index = coord_pts[coord_name].values().index(this_char)
-        coord_indices[coord_name].append(point_index)
+    coord_indices = {coord_name:[] for coord_name in _NOTATION_COORD_NAMES}
+    for a_char in cube_string:
+        coord_name, = [name 
+                       for name in _NOTATION_COORD_NAMES
+                       if a_char in _NOTATION_COORD_CHARS[name].values()]
+        char_index = _NOTATION_COORD_CHARS[coord_name].values().index(a_char)
+        coord_indices[coord_name].append(char_index)
     #print 'coord indices:', coord_indices
     if len(coord_indices['baz']) == 0:
-        print '2d slice: ',coord_indices['bar'], coord_indices['foo']
+#        print '2d slice: ',coord_indices['bar'], coord_indices['foo']
         result_cube = t2d
         result_cube = result_cube[coord_indices['bar'], :]
         result_cube = result_cube[:, coord_indices['foo']]
     else:
-        print '3d slice: ',coord_indices['baz'], coord_indices['bar'], coord_indices['foo']
+#        print '3d slice: ',coord_indices['baz'], coord_indices['bar'], coord_indices['foo']
         result_cube = t3d
         result_cube = result_cube[coord_indices['baz'], :, :]
         result_cube = result_cube[:, coord_indices['bar'], :]
@@ -189,9 +210,6 @@ print 'TEST cube_notation_string...'
 test_cube_notation_string()
 print
 
-# early exit for now
-#exit(0)
-
 def test_cube_from_notation_string():
     tst_specs = [
         'ab12',
@@ -212,9 +230,10 @@ def test_cube_from_notation_string():
 
 print
 print '-----------------------------------------'
-print 'TEST cube_FROM_notation_string...'
+print 'TEST cube_from_notation_string...'
 test_cube_from_notation_string()
 print
+
 
 def _reduce_cube(cube):
     # Replace vector coords of length 1 with scalars to enable merges.
@@ -236,7 +255,6 @@ def test_cube_merges():
         print '  cubes merge input = ', ', '.join(in_speclist)
         in_cubelist = iris.cube.CubeList([
             _reduce_cube(cube_from_notation_string(cube_string))
-#            cube_from_notation_string(cube_string)
             for cube_string in in_speclist])
         out_cubelist_actual = in_cubelist.merge()
         out_speclist_actual = [cube_notation_string(cube) 
