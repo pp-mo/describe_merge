@@ -24,7 +24,7 @@ def stuff_array_with_indices(array):
     for dim_array in dim_arrays:
         array[...] = 10.0*array + dim_array + 1
 
-do_real = True
+do_real = False
 if do_real:
     import iris
     import iris.tests.stock
@@ -75,6 +75,7 @@ else:   # (not do_real)
                 self._coord_names.append(name)
                 self._coords.append(DummyCoord(np.arange(n_points)))
             if array is None:
+                array = np.zeros(self.shape)
                 stuff_array_with_indices(array)
             self.data = array
 
@@ -244,6 +245,10 @@ def test_cube_merges():
         if out_speclist_actual != out_speclist_expected:
             print ' !XXXX! expected = ', ', '.join(out_speclist_expected)
         print
+
+# Stop if not real:  Merge not implemented for fake cubes.
+if not do_real:
+    exit(0)
 
 print
 print '-----------------------------------------'
