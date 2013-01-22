@@ -1,0 +1,93 @@
+Issues around merge definition and behaviour
+
+Types of coordinate definitions :
+=================================
+"Extensive" coordinates are non-scalar, as defined by Mark Hedley
+  - the term "scalar coordinate" is well used in the CF conventions document,
+    but "vector" is not.
+    Mark dislikes both, as the terms have a lot of maths/physics baggage 
+    He is proposing 'Extensive' as an alternative term, to mean length>1
+      -- it could instead be "non-scalar" "multi-valued" etc, or "vector"
+
+CF, in its (current) NetCDF-specific description (i.e. in the absence of an
+*abstract* data-model, under separate ongoing discussion), defines a 'scalar' 
+coordinate as :
+  A scalar variable that contains coordinate data.
+  Functionally equivalent to either a size one coordinate variable
+  or a size one auxiliary coordinate variable. 
+
+Also...
+  When a variable has an associated coordinate which is single-valued, that 
+  coordinate may be represented as a scalar variable. 
+  Since there is no associated dimension these scalar coordinate variables 
+  should be attached to a data variable via the coordinates attribute.
+  
+  Under COARDS the method of providing a single valued coordinate was to add a 
+  dimension of size one to the variable, and supply the corresponding 
+  coordinate variable. 
+  The new scalar coordinate variable is a convenience feature which avoids 
+  adding size one dimensions to variables. 
+  Scalar coordinate variables have the same information content and can be used 
+  in the same contexts as a size one coordinate variable. 
+
+It also defines other specific coordinate types + terms :
+    latitude, longitude, vertical, time
+    auxiliary
+
+The term "dimension coordinate" does not exist in CF.
+  We presume this is a coordinate that is *not* an auxiliary coord ?
+
+
+Loading relevance :
+====================
+MH suggests that some of the 'odd' current behaviour
+ -- specifically, combining multiple disparate values of extra coordinates 
+    into an artificial extra dimension, as describe in
+    -- /net/home/h05/itpp/git/describe_merge/merge_egs_1.py 
+    e.g. ...
+        #      cubes merge input =  a1, b3, a3, b1
+        #              output =  ab13
+        #
+        #      cubes merge input =  a1, b2
+        #              output =  ab12
+        #     !XXXX! expected =  a1, b2
+        #
+        #      cubes merge input =  a1, a4, b2, a2
+        #              output =  aaba1422
+        #     !XXXX! expected =  a124, b2
+    NOTE: the 'odd' ones are not actually 2d,
+    they have an extra coordinateless dimension, and the other 2 are mapped to 
+    it
+
+
+Examples of merge :
+===================
+test_merge is possibly a bit thin, 
+  -- but arguably, all the load tests are effectively merge tests ?
+
+
+Some ideas :
+============
+
+""" Merge does not depend on the order of the passed cubes """
+  a1, a2, a3 --> a123
+  a1, a3, a2 --> a123
+  a1, b3, a2, b2, b1, a3 --> ab123
+
+""" Merge produces ordered not depend on the order of the passed cubes """
+
+""" Merge is blocked by cubes with identical coordinates """
+  a1, a1 --> a1, a1
+  a1, b1, a1 --> a1, b1, a1
+
+""" Merge is like the opposite of (indexing, extraction, slicing) ? """
+
+If I cut a cube into bits with 'simple extraction'
+ -- i.e. orthogonal (not array-) indexing
+Then merge should put it back together as was
+At least if 
+  -- if it includes all the original data
+  -- (OR perhaps more?) it represents a simple square sub-set of the original
+
+On this basis, I expect
+  ab13, ab2, cd1, cd23 --> abc123
