@@ -3,10 +3,15 @@ Define a 'cube notation' scheme for merge testing.
 
 Can represent 2d and 3d cubes of a limited size, and extracted sections.
 Also *create* cubes of the correct structure from a notation string.
-The coordinate names associated with dimesions are fixed.
-The dimension points values in each dimension(coord
+Note:
+ - the coordinate names associated with dimensions are fixed.
+ - so are the coordinate points values.
+
 Examples:
-  2d, 2*3
+  2d, 3*4, described as abc1234
+  last two columns of same = "abc1234"[:,2:] = "abc34"
+  top + bottom rows only = "abc1234"[[0,2],:] =  "ac1234"
+  3d, 2*3*2 e.g. PQab123
 '''
 
 import numpy as np
@@ -177,30 +182,39 @@ def merge_cubes_from_speclist(in_speclist):
     out_cubelist_actual = in_cubelist.merge()
     return out_cubelist_actual
 
-def test_cubelist_merge(in_speclist, out_speclist_expected=None):
+def _indent(str, indent='  '):
+    return '\n'.join([indent+s for s in str.split('\n')])
+
+def test_cubelist_merge(in_speclist, out_speclist_expected=None, display_cubes=False):
     print '  cubes merge input = ', ', '.join(in_speclist)
     out_cubelist_actual = merge_cubes_from_speclist(in_speclist)
     out_speclist_actual = [cube_notation_string(cube) 
                            for cube in out_cubelist_actual]
-    print '          output = ', ', '.join(out_speclist_actual)
+    print '             output = ', ', '.join(out_speclist_actual)
     if out_speclist_expected is not None:
         if out_speclist_actual != out_speclist_expected:
-            print ' !XXXX! expected = ', ', '.join(out_speclist_expected)
+            print ' !XXXX! expected spec = ', ', '.join(out_speclist_expected)
 #                assert(out_speclist_actual == out_speclist_expected)
+    if display_cubes:
+        idt = '             '
+        print idt+'cubes : ...'
+        print ('\n').join([_indent(str(c), idt) for c in out_cubelist_actual])
 
 
-def test_merges():
+def test_merges(display_cubes=False):
     test_merge_specs = [
         ( ['ab1', 'ab2'], ['ab12']),
         ( ['a1', 'a3', 'a2'], ['a123']),
         ( ['a1', 'b3', 'a3', 'b1'], ['ab13']),
         ( ['a1', 'b2'], ['a1', 'b2'] ),
+        ( ['ab12', 'Qab12'], ['ab12', 'Qab12'] ),
         ( ['a1', 'a4', 'b2', 'a2'], ['a124', 'b2'] ),
         ( ['Pa1', 'Qa4', 'Ra4'], None ),
         ( ['Pa1', 'Qb4', 'Ra4'], None ),
+        
     ]
     for (in_speclist, out_speclist_expected) in test_merge_specs:
-        test_cubelist_merge(in_speclist, out_speclist_expected)
+        test_cubelist_merge(in_speclist, out_speclist_expected, display_cubes=display_cubes)
         print
 
 if __name__ == '__main__':
